@@ -1,9 +1,7 @@
 // Allows the code to bypass Clippy linter checks for large error types in results.
 #![allow(clippy::result_large_err)]
-
 // Importing necessary macros and types from the Anchor framework.
 use anchor_lang::prelude::*;
-
 // Declare the unique program ID for this voting program.
 // Replace the string with the actual program ID after deploying.
 declare_id!("AsjZ3kWAUSQRNt2pZVeJkywhZ6gpLpHZmJjduPmKZDZZ");
