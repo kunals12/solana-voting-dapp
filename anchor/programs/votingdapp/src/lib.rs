@@ -35,8 +35,29 @@ pub mod votingdapp {
         candidate_name: String,
     ) -> Result<()> {
         let candidate = &mut ctx.accounts.candidate;
+        let poll = &mut ctx.accounts.poll;
+        poll.candidate_amount += 1;
         candidate.candidate_name = candidate_name;
         candidate.candidate_votes = 0;
+        Ok(())
+    }
+
+    pub fn vote(ctx: Context<Vote>, _poll_id: u64, _candidate_name: String) -> Result<()> {
+        let candidate = &mut ctx.accounts.candidate;
+        let poll = &mut ctx.accounts.poll;
+        let current_time = Clock::get()?.unix_timestamp;
+
+        if current_time > (poll.poll_end as i64) {
+            return Err(ErrorCode::VotingEnded.into());
+        }
+
+        if current_time <= (poll.poll_start as i64) {
+            return Err(ErrorCode::VotingNotStarted.into());
+        }
+
+        candidate.candidate_votes += 1;
+        msg!("Voting for {}", candidate.candidate_name);
+        msg!("Votes are {}", candidate.candidate_votes);
         Ok(())
     }
 }
@@ -78,6 +99,7 @@ pub struct InitializeCandidate<'info> {
     pub signer: Signer<'info>, // The transaction signer who pays for the new account creation
 
     #[account(
+        mut,
         seeds = [poll_id.to_le_bytes().as_ref()], // Derives the PDA using `poll_id`
         bump // Auto-generated bump seed for PDA
     )]
@@ -91,6 +113,27 @@ pub struct InitializeCandidate<'info> {
         bump // Auto-generated bump seed for PDA
     )]
     pub candidate: Account<'info, Candidate>, // New candidate account being created
+
+    pub system_program: Program<'info, System>, // System program used for account initialization
+}
+
+#[derive(Accounts)]
+#[instruction(poll_id: u64, candidate_name: String)]
+pub struct Vote<'info> {
+    pub signer: Signer<'info>,
+
+    #[account(
+        seeds = [poll_id.to_le_bytes().as_ref()], // Derives the PDA using `poll_id`
+        bump // Auto-generated bump seed for PDA
+    )]
+    pub poll: Account<'info, Poll>,
+
+    #[account(
+        mut,
+        seeds = [poll_id.to_le_bytes().as_ref(), candidate_name.as_bytes()],
+        bump
+    )]
+    pub candidate: Account<'info, Candidate>,
 
     pub system_program: Program<'info, System>, // System program used for account initialization
 }
@@ -123,4 +166,12 @@ pub struct Candidate {
     #[max_len(32)]
     pub candidate_name: String,
     pub candidate_votes: u64,
+}
+
+#[error_code]
+pub enum ErrorCode {
+    #[msg("Voting has not started yet")]
+    VotingNotStarted,
+    #[msg("Voting has ended")]
+    VotingEnded,
 }
