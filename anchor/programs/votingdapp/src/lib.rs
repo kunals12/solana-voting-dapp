@@ -28,6 +28,17 @@ pub mod votingdapp {
         poll.candidate_amount = 0;
         Ok(())
     }
+
+    pub fn initialize_candidate(
+        ctx: Context<InitializeCandidate>,
+        _poll_id: u64,
+        candidate_name: String,
+    ) -> Result<()> {
+        let candidate = &mut ctx.accounts.candidate;
+        candidate.candidate_name = candidate_name;
+        candidate.candidate_votes = 0;
+        Ok(())
+    }
 }
 
 // Define the accounts required for the `initialize_poll` instruction.
@@ -59,6 +70,31 @@ pub struct InitializePoll<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)] // Macro to define the account layout for the instruction
+#[instruction(poll_id: u64, candidate_name: String)] // Arguments passed to the instruction
+pub struct InitializeCandidate<'info> {
+    // Lifetimes for Anchor context
+    #[account(mut)] // The signer account, marked as mutable
+    pub signer: Signer<'info>, // The transaction signer who pays for the new account creation
+
+    #[account(
+        seeds = [poll_id.to_le_bytes().as_ref()], // Derives the PDA using `poll_id`
+        bump // Auto-generated bump seed for PDA
+    )]
+    pub poll: Account<'info, Poll>, // Existing poll account associated with the candidate
+
+    #[account(
+        init, // Indicates this account will be initialized
+        payer = signer, // The signer will cover the cost of account creation
+        space = 8 + Candidate::INIT_SPACE, // Specifies account size (discriminator + struct data)
+        seeds = [poll_id.to_le_bytes().as_ref(), candidate_name.as_bytes()], // Derives the PDA using `poll_id` and `candidate_name`
+        bump // Auto-generated bump seed for PDA
+    )]
+    pub candidate: Account<'info, Candidate>, // New candidate account being created
+
+    pub system_program: Program<'info, System>, // System program used for account initialization
+}
+
 // Define the structure of the Poll account.
 // This struct determines the data layout stored in the poll account.
 #[account]
@@ -79,4 +115,12 @@ pub struct Poll {
 
     // The number of candidates participating in the poll.
     pub candidate_amount: u64,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct Candidate {
+    #[max_len(32)]
+    pub candidate_name: String,
+    pub candidate_votes: u64,
 }
